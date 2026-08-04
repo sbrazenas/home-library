@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Reading Web</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,ital@9..144,300..700,0..1&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0b0e18; --bg-deep: #05060c; --panel: #131729;
+    --panel-line: rgba(232,230,223,0.1); --text: #e9e6dc; --muted: #8b8fa8;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%; overflow:hidden;
+    background: radial-gradient(ellipse at 50% -10%, #12172a 0%, var(--bg) 45%, var(--bg-deep) 100%);
+    color: var(--text); font-family:'Inter',sans-serif;
+  }
+  .app{ position:relative; height:100vh; }
+  svg{ width:100%; height:100%; display:block; touch-action:none; }
+
+  header{
+    position:absolute; top:0; left:0; right:0; z-index:5;
+    padding: 20px 26px 10px;
+    display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:12px;
+    pointer-events:none;
+  }
+  .titleblock .eyebrow{
+    font-size:10px; letter-spacing:0.16em; text-transform:uppercase;
+    color: var(--muted); margin-bottom:4px; font-weight:500;
+  }
+  .titleblock h1{
+    font-family:'Fraunces',serif; font-weight:500; font-style:italic;
+    font-size: clamp(18px,2.2vw,25px); margin:0; letter-spacing:-0.01em;
+  }
+  .meta{ font-size:11px; color:var(--muted); text-align:right; line-height:1.5; max-width:230px; }
+  .meta strong{ color:var(--text); font-weight:600; }
+
+  .legend{
+    position:absolute; top:88px; left:26px; z-index:5;
+    display:flex; flex-direction:column; gap:5px;
+    background: rgba(19,23,41,0.6);
+    border:1px solid var(--panel-line); border-radius:12px; padding:11px 13px;
+    pointer-events:none; max-width:190px;
+  }
+  .legend .item{ display:flex; align-items:center; gap:7px; font-size:10.5px; color:var(--muted); line-height:1.3; }
+  .legend .dot{ width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+
+  .zoomctl{
+    position:absolute; bottom:20px; left:26px; z-index:6;
+    display:flex; flex-direction:column; gap:4px;
+  }
+  .zoomctl button{
+    width:32px; height:32px; border-radius:8px;
+    background: rgba(19,23,41,0.75); border:1px solid var(--panel-line);
+    color:var(--text); font-size:16px; cursor:pointer; font-family:'Inter';
+  }
+  .zoomctl button:hover{ background: rgba(255,255,255,0.1); }
+
+  .hint{
+    position:absolute; bottom:20px; right:30px; z-index:5;
+    font-size:10.5px; color:var(--muted); opacity:0.7; text-align:right;
+    pointer-events:none;
+  }
+
+  .link{ stroke-linecap:round; }
+  .link.dim{ opacity:0.04 !important; }
+  .link.lit{ opacity:0.9 !important; stroke-width:1.6 !important; }
+
+  .node{ cursor:pointer; }
+  .node circle.core{ cursor:pointer; }
+  .node text{
+    font-family:'Fraunces', serif; font-size:9.5px; font-weight:400;
+    fill: var(--muted); pointer-events:none;
+  }
+  .node.dim{ opacity:0.12; }
+  .node.lit circle.core{ fill-opacity:1; }
+  .node.lit text{ fill: var(--text); }
+  .node.selected circle.core{ stroke: var(--text); stroke-width:1.6px; }
+
+  .card{
+    position:absolute; bottom:20px; left:70px; z-index:6;
+    width: 370px; max-width: calc(100vw - 100px);
+    background: var(--panel); border:1px solid var(--panel-line); border-radius:14px;
+    padding:15px 18px;
+    opacity:0; transform:translateY(8px); pointer-events:none;
+    transition: opacity .2s ease, transform .2s ease;
+  }
+  .card.show{ opacity:1; transform:translateY(0); pointer-events:auto; }
+  .card .book-title{ font-family:'Fraunces',serif; font-style:italic; font-size:16px; margin:0 0 2px; }
+  .card .book-author{ font-size:11px; color:var(--muted); margin:0 0 8px; }
+  .card .blurb{ font-size:12px; color:var(--text); line-height:1.5; margin:0 0 11px; }
+  .card .branches-label{
+    font-size:9px; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted);
+    margin: 0 0 7px; padding-top:9px; border-top:1px solid var(--panel-line);
+  }
+  .card .chips{ display:flex; flex-wrap:wrap; gap:5px; max-height:120px; overflow-y:auto; }
+  .chip{
+    font-family:'Inter'; font-size:10.5px; padding:4px 9px 4px 7px; border-radius:999px;
+    border:1px solid var(--panel-line); background:rgba(255,255,255,0.03);
+    color: var(--text); cursor:pointer;
+    display:inline-flex; align-items:center; gap:6px;
+  }
+  .chip:hover{ background:rgba(255,255,255,0.09); border-color:rgba(255,255,255,0.3); }
+  .chip .cdot{ width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+  .edge-tip{
+    position:fixed; z-index:20; pointer-events:none;
+    background: var(--panel); border:1px solid var(--panel-line); border-radius:9px;
+    padding:8px 11px; max-width:230px; font-size:11.5px; line-height:1.4; color:var(--text);
+    opacity:0; transform:translateY(4px); transition: opacity .12s ease, transform .12s ease;
+  }
+  .edge-tip.show{ opacity:1; transform:translateY(0); }
+  .card .close{
+    position:absolute; top:11px; right:13px; cursor:pointer; color:var(--muted);
+    font-size:15px; line-height:1; background:none; border:none; padding:4px;
+  }
+  .card .close:hover{ color:var(--text); }
+
+  @media (max-width:640px){
+    header{ padding:14px 14px 6px; }
+    .legend{ display:none; }
+    .hint{ display:none; }
+    .card{ left:14px; right:14px; width:auto; }
+    .zoomctl{ left:14px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="titleblock">
+      <div class="eyebrow">Sam's Physical Library</div>
+      <h1>Pick your path</h1>
+    </div>
+  </header>
+
+  <div class="legend" id="legend"></div>
+  <div class="zoomctl">
+    <button id="zoomIn">+</button>
+    <button id="zoomOut">−</button>
+    <button id="zoomReset">⤢</button>
+  </div>
+  <div class="hint">drag a book to move it · click to explore</div>
+
+  <svg id="svg" viewBox="0 0 2200 1500" preserveAspectRatio="xMidYMid meet"></svg>
+
+  <div class="card" id="card">
+    <button class="close" id="closeCard">×</button>
+    <p class="book-title" id="cardTitle"></p>
+    <p class="book-author" id="cardAuthor"></p>
+    <p class="blurb" id="cardBlurb"></p>
+    <p class="branches-label">branches from here</p>
+    <div class="chips" id="cardChips"></div>
+  </div>
+  <div class="edge-tip" id="edgeTip"></div>
+</div>
+
+<script>
+const THEME_COLORS = {
+  root: '#f2efe6',
+  coming: '#d98c4a',
+  relationships: '#d98ba0',
+  behaviour: '#a83d56',
+  meaning: '#e8c468',
+  spiritual: '#7fb88f',
+  wonder: '#6fc0cf',
+  power: '#7f93b8',
+  ambition: '#9b8bb4',
+};
+const THEME_LABELS = {
+  coming: 'Coming of Age', relationships: 'Relationships & People', behaviour: 'Human Behaviour',
+  meaning: 'Meaning & the Examined Self', spiritual: 'Spiritual Paths & Pilgrimage',
+  wonder: 'Wonder & the Cosmic Unknown', power: 'Power, Control & Rebellion', ambition: 'Ambition & the Art of Building'
+};
+
+const NODES = [
+  { id:'dark-matter', t:'Dark Matter', a:'Blake Crouch', theme:'root', blurb:'Multiverse thriller about the road not taken — your current read.' },
+
+  // Coming of Age
+  { id:'enders-game', t:"Ender's Game", a:'Orson Scott Card', theme:'coming', blurb:'A child weaponized as a strategist.' },
+  { id:'enders-shadow', t:"Ender's Shadow", a:'Orson Scott Card', theme:'coming', blurb:'The same war, seen from the kid nobody noticed.' },
+  { id:'shadow-puppets', t:'Shadow Puppets', a:'Orson Scott Card', theme:'coming', blurb:"Children still cleaning up a war they didn't start." },
+  { id:'funny-story', t:"It's Kind of a Funny Story", a:'Ned Vizzini', theme:'coming', blurb:'A teenager checking himself into the one place that might help.' },
+  { id:'freedom-writers', t:'The Freedom Writers Diary', a:'Erin Gruwell', theme:'coming', blurb:"A classroom writing its way out of what it was handed." },
+  { id:'great-expectations', t:'Great Expectations', a:'Charles Dickens', theme:'coming', blurb:"Growing up around a fortune that isn't what it seems." },
+  { id:'caged-bird', t:'I Know Why the Caged Bird Sings', a:'Maya Angelou', theme:'coming', blurb:'Coming of age against a world built to shrink you.' },
+  { id:'treasure-island', t:'Treasure Island', a:'Robert Louis Stevenson', theme:'coming', blurb:"A boy's first taste of greed, loyalty, and the sea." },
+  { id:'their-eyes', t:'Their Eyes Were Watching God', a:'Zora Neale Hurston', theme:'coming', blurb:'Growing into your own voice, marriage by marriage.' },
+  { id:'catcher-rye', t:'The Catcher in the Rye', a:'J.D. Salinger', theme:'coming', blurb:'Refusing to grow up, loudly.' },
+  { id:'beneath-wheel', t:'Beneath the Wheel', a:'Hermann Hesse', theme:'coming', blurb:'A promising boy ground down by the system meant to lift him.' },
+  { id:'knight-seven-kingdoms', t:'A Knight of the Seven Kingdoms', a:'George R.R. Martin', theme:'coming', blurb:'A squire learning what knighthood actually costs.' },
+  { id:'born-crime', t:'Born a Crime', a:'Trevor Noah', theme:'coming', blurb:'A childhood that was, legally, a crime.' },
+  { id:'all-quiet', t:'All Quiet on the Western Front', a:'Erich Maria Remarque', theme:'coming', blurb:'Boys sent to war and returned as something else.' },
+  { id:'natural-woman', t:'A Natural Woman', a:'Carole King', theme:'coming', blurb:'A songwriter growing up in public, one hit at a time.' },
+
+  // Relationships & People
+  { id:'madame-bovary', t:'Madame Bovary', a:'Gustave Flaubert', theme:'relationships', blurb:"A marriage that can't hold one woman's appetite for more." },
+  { id:'pride-prejudice', t:'Pride and Prejudice', a:'Jane Austen', theme:'relationships', blurb:'Misjudging someone long enough to fall for them anyway.' },
+  { id:'emma', t:'Emma', a:'Jane Austen', theme:'relationships', blurb:"A matchmaker who can't see her own heart." },
+  { id:'farewell-arms', t:'A Farewell to Arms', a:'Ernest Hemingway', theme:'relationships', blurb:'Love conducted in the middle of a war.' },
+  { id:'wuthering-heights', t:'Wuthering Heights', a:'Emily Brontë', theme:'relationships', blurb:'Obsession dressed up as love, generation after generation.' },
+  { id:'jane-eyre', t:'Jane Eyre', a:'Charlotte Brontë', theme:'relationships', blurb:'Love that insists on equal footing or nothing.' },
+  { id:'of-mice-men', t:'Of Mice and Men', a:'John Steinbeck', theme:'relationships', blurb:'Two men, one impossible promise to look after each other.' },
+  { id:'four-loves', t:'The Four Loves', a:'C.S. Lewis', theme:'relationships', blurb:'Naming the different shapes love actually takes.' },
+  { id:'twelve-minutes', t:'Twelve Minutes of Love: A Tango Story', a:'Kapka Kassabova', theme:'relationships', blurb:'Falling for a dance, then the people inside it.' },
+  { id:'all-way-river', t:'All the Way to the River', a:'Elizabeth Gilbert', theme:'relationships', blurb:'Loving someone through their unraveling.' },
+  { id:'ten-year-affair', t:'The Ten Year Affair', a:'Erin Somers', theme:'relationships', blurb:'An imagined parallel life, lived alongside the real one.' },
+  { id:'high-fidelity', t:'High Fidelity', a:'Nick Hornby', theme:'relationships', blurb:'Cataloguing every breakup to avoid feeling the current one.' },
+  { id:'night-day', t:'Night and Day', a:'Virginia Woolf', theme:'relationships', blurb:'Courtship as a negotiation between duty and desire.' },
+  { id:'tale-two-cities', t:'A Tale of Two Cities', a:'Charles Dickens', theme:'relationships', blurb:'Love and sacrifice on either side of a revolution.' },
+  { id:'kin', t:'Kin', a:'Tayari Jones', theme:'relationships', blurb:"Family loyalty tested by a secret everyone's protecting." },
+  { id:'freya', t:'Freya', a:'Anthony Quinn', theme:'relationships', blurb:'A friendship and its unraveling across decades.' },
+  { id:'lost-boys', t:'Lost Boys', a:'Orson Scott Card', theme:'relationships', blurb:'A family unraveling quietly, then not quietly at all.' },
+  { id:'best-offer-wins', t:'Best Offer Wins', a:'Marisa Kashino', theme:'relationships', blurb:'A marriage under the pressure of wanting the same house too badly.' },
+  { id:'lightbreakers', t:'Lightbreakers', a:'Aja Gabel', theme:'relationships', blurb:'Friendship and rivalry inside the same tight circle.' },
+
+  // Human Behaviour
+  { id:'crime-punishment', t:'Crime and Punishment', a:'Fyodor Dostoyevsky', theme:'behaviour', blurb:'Guilt that outpaces the crime itself.' },
+  { id:'the-gambler', t:'The Gambler', a:'Fyodor Dostoyevsky', theme:'behaviour', blurb:'Compulsion narrated from inside the compulsion.' },
+  { id:'dorian-gray', t:'The Picture of Dorian Gray', a:'Oscar Wilde', theme:'behaviour', blurb:'Vanity, with a portrait that pays the price.' },
+  { id:'interview-vampire', t:'Interview with the Vampire', a:'Anne Rice', theme:'behaviour', blurb:'Immortality as its own kind of moral rot.' },
+  { id:'red-dragon', t:'Red Dragon', a:'Thomas Harris', theme:'behaviour', blurb:"The profiler's logic — understanding a mind to catch it." },
+  { id:'american-psycho', t:'American Psycho', a:'Bret Easton Ellis', theme:'behaviour', blurb:"Consumerism wearing a killer's face." },
+  { id:'fight-club', t:'Fight Club', a:'Chuck Palahniuk', theme:'behaviour', blurb:'Identity dissolved on purpose, then rebuilt violently.' },
+  { id:'choke', t:'Choke', a:'Chuck Palahniuk', theme:'behaviour', blurb:'Self-sabotage as the engine of the plot.' },
+  { id:'midnight-garden', t:'Midnight in the Garden of Good and Evil', a:'John Berendt', theme:'behaviour', blurb:'True crime rendered as Southern gothic.' },
+  { id:'requiem-dream', t:'Requiem for a Dream', a:'Hubert Selby Jr.', theme:'behaviour', blurb:'Addiction narrated from inside the collapse.' },
+  { id:'sanctuary', t:'Sanctuary', a:'William Faulkner', theme:'behaviour', blurb:"Faulkner's most unsparing look at violence and corruption." },
+  { id:'art-thinking-clearly', t:'The Art of Thinking Clearly', a:'Rolf Dobelli', theme:'behaviour', blurb:'A field guide to your own worst mental habits.' },
+  { id:'blink', t:'Blink', a:'Malcolm Gladwell', theme:'behaviour', blurb:'How snap judgments work, and how they fail.' },
+  { id:'pursuit-loneliness', t:'The Pursuit of Loneliness', a:'Philip Slater', theme:'behaviour', blurb:'Why a culture built for independence leaves people isolated.' },
+  { id:'molka', t:'Molka', a:'Monika Kim', theme:'behaviour', blurb:'Revenge horror built on a real, ongoing violation of privacy.' },
+  { id:'vanity-fair', t:'Vanity Fair', a:'William Makepeace Thackeray', theme:'behaviour', blurb:'Ambition and social climbing with no real hero at the center.' },
+  { id:'circus-bulgaria', t:'Circus Bulgaria', a:'Deyan Enev', theme:'behaviour', blurb:'Short, strange glimpses of people under pressure.' },
+  { id:'brookmyre-1', t:'Not the End of the World', a:'Christopher Brookmyre', theme:'behaviour', blurb:'Conspiracy, comedy, and bad behavior colliding on an island.' },
+  { id:'brookmyre-2', t:'Attack of the Unsinkable Rubber Ducks', a:'Christopher Brookmyre', theme:'behaviour', blurb:'Journalism, murder, and dark comedy in Scotland.' },
+  { id:'brookmyre-3', t:'A Big Boy Did It and Ran Away', a:'Christopher Brookmyre', theme:'behaviour', blurb:'Terrorism plotting that keeps tripping over its own farce.' },
+  { id:'brookmyre-4', t:'Be My Enemy', a:'Christopher Brookmyre', theme:'behaviour', blurb:"A reunion that turns into a conspiracy nobody signed up for." },
+
+  // Meaning & the Examined Self
+  { id:'happy-death', t:'A Happy Death', a:'Albert Camus', theme:'meaning', blurb:'An early meditation on dying well.' },
+  { id:'the-fall', t:'The Fall', a:'Albert Camus', theme:'meaning', blurb:'A confession that becomes self-judgment.' },
+  { id:'devil-good-lord', t:'The Devil & the Good Lord', a:'Jean-Paul Sartre', theme:'meaning', blurb:'Freedom staged with no God to answer to.' },
+  { id:'age-of-reason', t:'The Age of Reason', a:'Jean-Paul Sartre', theme:'meaning', blurb:'A man stalling on every choice that would define him.' },
+  { id:'confessions', t:'Confessions', a:'Saint Augustine', theme:'meaning', blurb:"The memoir's ancient prototype." },
+  { id:'sickness-unto-death', t:'The Sickness Unto Death', a:'Søren Kierkegaard', theme:'meaning', blurb:"Despair as the self's relationship to itself." },
+  { id:'present-age', t:'The Present Age', a:'Søren Kierkegaard', theme:'meaning', blurb:'A diagnosis of anxious, leveled modern life.' },
+  { id:'short-life-kierkegaard', t:'A Short Life of Kierkegaard', a:'Walter Lowrie', theme:'meaning', blurb:"A philosopher's own life, read as a text." },
+  { id:'beyond-good-evil', t:'Beyond Good and Evil', a:'Friedrich Nietzsche', theme:'meaning', blurb:'Morality itself put on trial.' },
+  { id:'zarathustra', t:'Thus Spoke Zarathustra', a:'Friedrich Nietzsche', theme:'meaning', blurb:'Eternal recurrence — would you choose this exact life again?' },
+  { id:'five-dialogues', t:'Five Dialogues', a:'Plato', theme:'meaning', blurb:'The foundational arguments, in their original back-and-forth.' },
+  { id:'ethics-aristotle', t:'Ethics', a:'Aristotle', theme:'meaning', blurb:'What a well-lived life actually requires.' },
+  { id:'analects', t:'The Analects', a:'Confucius', theme:'meaning', blurb:'Wisdom delivered in fragments, not systems.' },
+  { id:'meditations', t:'Meditations', a:'Marcus Aurelius', theme:'meaning', blurb:'A private notebook on how to stay steady.' },
+  { id:'existentialist-cafe', t:'At the Existentialist Café', a:'Sarah Bakewell', theme:'meaning', blurb:'The philosophers and the arguments, told as a story.' },
+  { id:'existentialism-predicament', t:'Existentialism and the Modern Predicament', a:'Ed. William Barrett', theme:'meaning', blurb:'Existentialism explained as a response to a modern crisis.' },
+  { id:'second-sex', t:'The Second Sex', a:'Simone de Beauvoir', theme:'meaning', blurb:'What it means to become a woman, not just be born one.' },
+  { id:'sophie-world', t:"Sophie's World", a:'Jostein Gaarder', theme:'meaning', blurb:'The history of philosophy, told as a story.' },
+
+  // Spiritual Paths & Pilgrimage
+  { id:'tao-te-ching', t:'Tao Te Ching', a:'Lao Tzu', theme:'spiritual', blurb:'The quiet alternative to Western striving.' },
+  { id:'bhagavad-gita', t:'The Bhagavad-Gita', a:'Anonymous', theme:'spiritual', blurb:'Duty and detachment, argued on a battlefield.' },
+  { id:'siddhartha', t:'Siddhartha', a:'Hermann Hesse', theme:'spiritual', blurb:'A search for meaning outside any doctrine.' },
+  { id:'zen-motorcycle', t:'Zen and the Art of Motorcycle Maintenance', a:'Robert M. Pirsig', theme:'spiritual', blurb:'A cross-country trip framed as philosophical inquiry.' },
+  { id:'lila', t:'Lila', a:'Robert M. Pirsig', theme:'spiritual', blurb:"Pirsig's sequel, chasing the same questions down a river." },
+  { id:'into-wild', t:'Into the Wild', a:'Jon Krakauer', theme:'spiritual', blurb:'The search for meaning taken to its literal edge.' },
+  { id:'shantaram', t:'Shantaram', a:'Gregory David Roberts', theme:'spiritual', blurb:'Reinvention through exile and love.' },
+  { id:'claustrophobias', t:'Claustrophobias', a:'Nikolai Grozni', theme:'spiritual', blurb:'Confinement, spiritually and literally, examined up close.' },
+  { id:'farewell-gaston', t:'Farewell Monsieur Gaston', a:'Nikolai Grozni', theme:'spiritual', blurb:'A quieter, stranger kind of searching.' },
+  { id:'hobbit', t:'The Hobbit', a:'J.R.R. Tolkien', theme:'spiritual', blurb:'A comfort-adventure — the start of a much longer road.' },
+  { id:'lotr-fellowship', t:'The Fellowship of the Ring', a:'J.R.R. Tolkien', theme:'spiritual', blurb:"The road begins, and it's longer than anyone wants." },
+  { id:'lotr-two-towers', t:'The Two Towers', a:'J.R.R. Tolkien', theme:'spiritual', blurb:'The company splits, and the road gets harder.' },
+  { id:'lotr-return-king', t:'The Return of the King', a:'J.R.R. Tolkien', theme:'spiritual', blurb:'The long road, finished — at a cost.' },
+
+  // Wonder & the Cosmic Unknown
+  { id:'brief-history-time', t:'A Brief History of Time', a:'Stephen Hawking', theme:'wonder', blurb:"The physics wonder behind every 'what if.'" },
+  { id:'2001-space-odyssey', t:'2001: A Space Odyssey', a:'Arthur C. Clarke', theme:'wonder', blurb:'Cosmic scale, dramatized.' },
+  { id:'physics-sorrow', t:'The Physics of Sorrow', a:'Georgi Gospodinov', theme:'wonder', blurb:'Physics turned into metaphor for an inner life.' },
+  { id:'time-shelter', t:'Time Shelter', a:'Georgi Gospodinov', theme:'wonder', blurb:'A clinic that lets the past overtake the present, on purpose.' },
+  { id:'speaker-dead', t:'Speaker for the Dead', a:'Orson Scott Card', theme:'wonder', blurb:'Understanding an alien species after destroying it.' },
+  { id:'children-mind', t:'Children of the Mind', a:'Orson Scott Card', theme:'wonder', blurb:'Consciousness and identity stretched across bodies and worlds.' },
+  { id:'odyssey', t:'The Odyssey', a:'Homer', theme:'wonder', blurb:'The original impossible journey home.' },
+  { id:'slaughterhouse-five', t:'Slaughterhouse-Five', a:'Kurt Vonnegut', theme:'wonder', blurb:'Time unstuck, and a man forced to live it all at once.' },
+  { id:'origin-species', t:'The Origin of Species', a:'Charles Darwin', theme:'wonder', blurb:"The theory that quietly rewrote humanity's place in the universe." },
+  { id:'illustrated-man', t:'The Illustrated Man', a:'Ray Bradbury', theme:'wonder', blurb:'Short stories tattooed onto one body, each its own cosmos.' },
+  { id:'time-machine', t:'The Time Machine', a:'H.G. Wells', theme:'wonder', blurb:'The far future, visited on purpose.' },
+  { id:'war-worlds', t:'The War of the Worlds', a:'H.G. Wells', theme:'wonder', blurb:'An invasion that makes humanity look very small.' },
+  { id:'gullivers-travels', t:"Gulliver's Travels", a:'Jonathan Swift', theme:'wonder', blurb:'Scale itself used to mock everything humans take for granted.' },
+  { id:'doctor-faustus', t:'Doctor Faustus', a:'Christopher Marlowe', theme:'wonder', blurb:'A man who trades everything for forbidden knowledge.' },
+  { id:'candide', t:'Candide', a:'Voltaire', theme:'wonder', blurb:'Optimism tested against a genuinely absurd universe.' },
+
+  // Power, Control & Rebellion
+  { id:'darkness-noon', t:'Darkness at Noon', a:'Arthur Koestler', theme:'power', blurb:'A true believer interrogated by his own system.' },
+  { id:'utopia', t:'Utopia', a:'Thomas More', theme:'power', blurb:'The blueprint every dystopia argues with.' },
+  { id:'1984', t:'1984', a:'George Orwell', theme:'power', blurb:'Total control through surveillance and language.' },
+  { id:'down-out-paris', t:'Down and Out in Paris and London', a:'George Orwell', theme:'power', blurb:'Poverty observed from inside it, not above it.' },
+  { id:'brave-new-world', t:'Brave New World', a:'Aldous Huxley', theme:'power', blurb:'Control through pleasure instead of pain.' },
+  { id:'fahrenheit-451', t:'Fahrenheit 451', a:'Ray Bradbury', theme:'power', blurb:'Control by removing the ability to think slowly.' },
+  { id:'gulag', t:'The Gulag Archipelago', a:'Aleksandr Solzhenitsyn', theme:'power', blurb:'The machinery of the system, documented from inside.' },
+  { id:'ivan-denisovich', t:'One Day in the Life of Ivan Denisovich', a:'Aleksandr Solzhenitsyn', theme:'power', blurb:'The same machinery, compressed into a single day.' },
+  { id:'back-soon', t:"We Thought We'd Be Back Soon", a:'Ed. Svetlana Alexievich', theme:'power', blurb:'Refugee testimony from under twentieth-century regimes.' },
+  { id:'atlas-shrugged', t:'Atlas Shrugged', a:'Ayn Rand', theme:'power', blurb:'Control as theft from the individual — the counter-argument.' },
+  { id:'new-jim-crow', t:'The New Jim Crow', a:'Michelle Alexander', theme:'power', blurb:"The system's own criminality, documented." },
+  { id:'the-rebel', t:'The Rebel', a:'Albert Camus', theme:'power', blurb:'Revolt as an ethic, not just a reaction.' },
+  { id:'communist-manifesto', t:'The Communist Manifesto', a:'Marx & Engels', theme:'power', blurb:'The argument every economic system since has had to answer.' },
+  { id:'things-fall-apart', t:'Things Fall Apart', a:'Chinua Achebe', theme:'power', blurb:'A society taken apart by the arrival of a new order.' },
+  { id:'voices-chernobyl', t:'Voices from Chernobyl', a:'Svetlana Alexievich', theme:'power', blurb:"An accident, and the state's instinct to control the story of it." },
+  { id:'culture-terrorism', t:'The Culture of Terrorism', a:'Noam Chomsky', theme:'power', blurb:'How states justify the violence they commit.' },
+  { id:'behold-pale-horse', t:'Behold a Pale Horse', a:'William Cooper', theme:'power', blurb:'Conspiracy as a total worldview.' },
+  { id:'looking-backward', t:'Looking Backward', a:'Edward Bellamy', theme:'power', blurb:'A utopia imagined from the other side of history.' },
+  { id:'discourse-inequality', t:'A Discourse on Inequality', a:'Jean-Jacques Rousseau', theme:'power', blurb:'Where inequality actually comes from, argued from first principles.' },
+  { id:'open-veins', t:'Open Veins of Latin America', a:'Eduardo Galeano', theme:'power', blurb:'Centuries of extraction, told as one continuous story.' },
+  { id:'half-yellow-sun', t:'Half of a Yellow Sun', a:'Chimamanda Ngozi Adichie', theme:'power', blurb:'Love and survival through the Biafran war.' },
+  { id:'end-always-near', t:'The End Is Always Near', a:'Dan Carlin', theme:'power', blurb:'A history of collapse, told through the moments everything nearly ended.' },
+
+  // Ambition & the Art of Building
+  { id:'never-split', t:'Never Split the Difference', a:'Chris Voss', theme:'ambition', blurb:'Negotiation as tactical empathy.' },
+  { id:'nonviolent-comm', t:'Nonviolent Communication', a:'Marshall Rosenberg', theme:'ambition', blurb:'The emotional skill underneath good negotiation.' },
+  { id:'e-myth', t:'The E-Myth Revisited', a:'Michael E. Gerber', theme:'ambition', blurb:'Systems over heroics.' },
+  { id:'invisible-power', t:'Invisible Power', a:'Manning, Charbit & Krot', theme:'ambition', blurb:'Coaching as leverage — getting others to their own answers.' },
+  { id:'new-gold-standard', t:'The New Gold Standard', a:'Joseph Michelli', theme:'ambition', blurb:'Service culture, Ritz-Carlton style.' },
+  { id:'lean-startup', t:'The Lean Startup', a:'Eric Ries', theme:'ambition', blurb:'Validated learning as a method for building.' },
+  { id:'rework', t:'Rework', a:'Fried & Hansson', theme:'ambition', blurb:'Smaller, faster, saner — the anti-methodology.' },
+  { id:'inspired', t:'Inspired', a:'Marty Cagan', theme:'ambition', blurb:'What separates great product teams from the rest.' },
+  { id:'lean-product-playbook', t:'The Lean Product Playbook', a:'Dan Olsen', theme:'ambition', blurb:'Product-market fit turned into a repeatable process.' },
+  { id:'hug-haters', t:'Hug Your Haters', a:'Jay Baer', theme:'ambition', blurb:'Complaints treated as a channel, not a fire to put out.' },
+  { id:'outliers', t:'Outliers', a:'Malcolm Gladwell', theme:'ambition', blurb:'Success stories, re-examined for what actually built them.' },
+  { id:'tipping-point', t:'The Tipping Point', a:'Malcolm Gladwell', theme:'ambition', blurb:'How small changes cause big, sudden shifts.' },
+  { id:'on-writing', t:'On Writing', a:'Stephen King', theme:'ambition', blurb:'Craft and memoir, stitched together.' },
+  { id:'elements-style', t:'The Elements of Style', a:'Strunk & White', theme:'ambition', blurb:'The rules good writing breaks on purpose, once it knows them.' },
+  { id:'daily-rituals', t:'Daily Rituals', a:'Mason Currey', theme:'ambition', blurb:'How famous creative people actually structured their days.' },
+  { id:'great-gatsby', t:'The Great Gatsby', a:'F. Scott Fitzgerald', theme:'ambition', blurb:'Ambition curdling into obsession, dressed up as romance.' },
+  { id:'what-dog-saw', t:'What the Dog Saw', a:'Malcolm Gladwell', theme:'ambition', blurb:"Other people's lives and choices, reported in miniature." },
+];
+
+// hand-picked cross-theme jumps + the Dark Matter starting spokes (one per theme, plus a few extras)
+const HAND_EDGES = [
+  ['dark-matter','enders-game'], ['dark-matter','ten-year-affair'], ['dark-matter','fight-club'],
+  ['dark-matter','zarathustra'], ['dark-matter','into-wild'], ['dark-matter','brief-history-time'],
+  ['dark-matter','1984'], ['dark-matter','outliers'],
+
+  ['sickness-unto-death','choke'], ['fight-club','atlas-shrugged'], ['crime-punishment','red-dragon'],
+  ['beyond-good-evil','dorian-gray'], ['siddhartha','hobbit'], ['siddhartha','shantaram'],
+  ['zen-motorcycle','on-writing'], ['confessions','second-sex'], ['never-split','midnight-garden'],
+  ['new-jim-crow','midnight-garden'], ['outliers','into-wild'], ['born-crime','into-wild'],
+  ['wuthering-heights','ten-year-affair'], ['interview-vampire','dorian-gray'],
+  ['doctor-faustus','beyond-good-evil'], ['american-psycho','vanity-fair'], ['atlas-shrugged','e-myth'],
+  ['atlas-shrugged','great-gatsby'], ['1984','new-jim-crow'], ['half-yellow-sun','things-fall-apart'],
+  ['gulag','voices-chernobyl'], ['candide','illustrated-man'], ['lotr-return-king','2001-space-odyssey'],
+  ['great-gatsby','madame-bovary'], ['freya','kin'], ['molka','fight-club'],
+];
+
+// hand-written reasons for the cross-theme jumps above — same-theme connections
+// (generated by the cluster web) get an honest generic reason instead of a
+// fabricated specific one, since those pairings weren't individually curated
+const EDGE_REASONS = {
+  'dark-matter|enders-game': "Both ask what a person owes to a life they didn't choose.",
+  'dark-matter|ten-year-affair': 'Both live out a parallel life alongside the one actually lived.',
+  'dark-matter|fight-club': 'Both split one identity into more than it can hold.',
+  'dark-matter|zarathustra': 'Both circle the same question — would you choose this exact life again?',
+  'dark-matter|into-wild': 'Both are about leaving one life in search of a truer one.',
+  'brief-history-time|dark-matter': "Both borrow real physics to ask 'what if.'",
+  '1984|dark-matter': 'Both imagine a version of reality engineered by someone else.',
+  'dark-matter|outliers': 'Both examine how small differences compound into wildly different lives.',
+  'choke|sickness-unto-death': 'Both diagnose despair as something the self does to itself.',
+  'atlas-shrugged|fight-club': 'Both build a philosophy out of rejecting the system around them.',
+  'crime-punishment|red-dragon': 'Both live inside the logic of a mind capable of violence.',
+  'beyond-good-evil|dorian-gray': 'Both put conventional morality on trial and let vanity win.',
+  'hobbit|siddhartha': 'Both are a journey that changes who the traveler is.',
+  'shantaram|siddhartha': 'Both find meaning through exile rather than doctrine.',
+  'on-writing|zen-motorcycle': 'Both treat craft itself as a form of inquiry.',
+  'confessions|second-sex': 'Both interrogate what it means to become a self.',
+  'midnight-garden|never-split': 'Both are about reading a dangerous room correctly.',
+  'midnight-garden|new-jim-crow': "Both look at how a system decides who's guilty.",
+  'into-wild|outliers': 'Both question what actually determines how a life turns out.',
+  'born-crime|into-wild': "Both are shaped by a world the protagonist didn't choose.",
+  'ten-year-affair|wuthering-heights': 'Both treat love as its own alternate reality.',
+  'dorian-gray|interview-vampire': 'Both make eternal youth a curse, not a gift.',
+  'beyond-good-evil|doctor-faustus': 'Both chase forbidden knowledge past the point of safety.',
+  'american-psycho|vanity-fair': 'Both skewer ambition with no one worth rooting for.',
+  'atlas-shrugged|e-myth': 'Both treat the individual builder as the engine of everything.',
+  'atlas-shrugged|great-gatsby': 'Both worship self-made success, then complicate it.',
+  '1984|new-jim-crow': 'Both show how a system disguises control as order.',
+  'half-yellow-sun|things-fall-apart': 'Both watch a society come apart under a new order.',
+  'gulag|voices-chernobyl': "Both document a state's instinct to bury its own disaster.",
+  'candide|illustrated-man': 'Both use the absurd to say something true about existence.',
+  '2001-space-odyssey|lotr-return-king': 'Both end an epic journey with a transformation, not just a victory.',
+  'great-gatsby|madame-bovary': 'Both destroy themselves chasing a life that was never real.',
+  'freya|kin': "Both are about loyalty tested by what a family won't say out loud.",
+  'fight-club|molka': 'Both turn violence into a language for reclaiming control.',
+};
+
+function reasonFor(idA, idB){
+  const key = [idA, idB].slice().sort().join('|');
+  if(EDGE_REASONS[key]) return EDGE_REASONS[key];
+  const na = nodeById[idA], nb = nodeById[idB];
+  if(na && nb && na.theme === nb.theme && THEME_LABELS[na.theme]){
+    return `Both part of ${THEME_LABELS[na.theme]}.`;
+  }
+  return 'Connected through the library web.';
+}
+
+// theme clusters — each stitched into its own mini-web so every book keeps
+// at least 4 connections before cross-links are even counted
+const CLUSTERS = [
+  ['enders-game','enders-shadow','shadow-puppets','funny-story','freedom-writers','great-expectations','caged-bird','treasure-island','their-eyes','catcher-rye','beneath-wheel','knight-seven-kingdoms','born-crime','all-quiet','natural-woman'],
+  ['madame-bovary','pride-prejudice','emma','farewell-arms','wuthering-heights','jane-eyre','of-mice-men','four-loves','twelve-minutes','all-way-river','ten-year-affair','high-fidelity','night-day','tale-two-cities','kin','freya','lost-boys','best-offer-wins','lightbreakers'],
+  ['crime-punishment','the-gambler','dorian-gray','interview-vampire','red-dragon','american-psycho','fight-club','choke','midnight-garden','requiem-dream','sanctuary','art-thinking-clearly','blink','pursuit-loneliness','molka','vanity-fair','circus-bulgaria','brookmyre-1','brookmyre-2','brookmyre-3','brookmyre-4'],
+  ['happy-death','the-fall','devil-good-lord','age-of-reason','confessions','sickness-unto-death','present-age','short-life-kierkegaard','beyond-good-evil','zarathustra','five-dialogues','ethics-aristotle','analects','meditations','existentialist-cafe','existentialism-predicament','second-sex','sophie-world'],
+  ['tao-te-ching','bhagavad-gita','siddhartha','zen-motorcycle','lila','into-wild','shantaram','claustrophobias','farewell-gaston','hobbit','lotr-fellowship','lotr-two-towers','lotr-return-king'],
+  ['brief-history-time','2001-space-odyssey','physics-sorrow','time-shelter','speaker-dead','children-mind','odyssey','slaughterhouse-five','origin-species','illustrated-man','time-machine','war-worlds','gullivers-travels','doctor-faustus','candide'],
+  ['darkness-noon','utopia','1984','down-out-paris','brave-new-world','fahrenheit-451','gulag','ivan-denisovich','back-soon','atlas-shrugged','new-jim-crow','the-rebel','communist-manifesto','things-fall-apart','voices-chernobyl','culture-terrorism','behold-pale-horse','looking-backward','discourse-inequality','open-veins','half-yellow-sun','end-always-near'],
+  ['never-split','nonviolent-comm','e-myth','invisible-power','new-gold-standard','lean-startup','rework','inspired','lean-product-playbook','hug-haters','outliers','tipping-point','on-writing','elements-style','daily-rituals','great-gatsby','what-dog-saw'],
+];
+
+function circulantEdges(arr){
+  const n = arr.length, out = [];
+  [1,2].forEach(off => {
+    for(let i=0;i<n;i++){
+      out.push([arr[i], arr[(i+off)%n]]);
+    }
+  });
+  return out;
+}
+
+let RAW = [...HAND_EDGES];
+CLUSTERS.forEach(arr => { RAW = RAW.concat(circulantEdges(arr)); });
+
+const seen = new Set();
+const EDGE_PAIRS = RAW.filter(([a,b]) => {
+  const key = [a,b].slice().sort().join('|');
+  if(seen.has(key)) return false;
+  seen.add(key);
+  return true;
+});
+
+const nodeById = {};
+NODES.forEach(n => nodeById[n.id] = n);
+const neighbors = {};
+NODES.forEach(n => neighbors[n.id] = []);
+EDGE_PAIRS.forEach(([a,b]) => { neighbors[a].push(b); neighbors[b].push(a); });
+const edges = EDGE_PAIRS.map(([a,b]) => ({ source: nodeById[a], target: nodeById[b] }));
+
+/* ---------- initial positions ---------- */
+const W = 2200, H = 1500, CX = W/2, CY = H/2;
+NODES.forEach((n, i) => {
+  if(n.id === 'dark-matter'){ n.x = CX; n.y = CY; }
+  else {
+    const ang = (i / NODES.length) * Math.PI * 2;
+    const rad = 380 + (i % 7) * 55;
+    n.x = CX + Math.cos(ang) * rad;
+    n.y = CY + Math.sin(ang) * rad * 0.78;
+  }
+  n.vx = 0; n.vy = 0; n.fx = null; n.fy = null;
+});
+
+/* ---------- legend ---------- */
+const legendEl = document.getElementById('legend');
+Object.entries(THEME_LABELS).forEach(([key,label]) => {
+  const item = document.createElement('div');
+  item.className = 'item';
+  item.innerHTML = `<span class="dot" style="background:${THEME_COLORS[key]}"></span>${label}`;
+  legendEl.appendChild(item);
+});
+
+/* ---------- build SVG ---------- */
+const svgNS = 'http://www.w3.org/2000/svg';
+const svgEl = document.getElementById('svg');
+const zoomG = document.createElementNS(svgNS, 'g');
+svgEl.appendChild(zoomG);
+const g = document.createElementNS(svgNS, 'g');
+zoomG.appendChild(g);
+
+const linkEls = edges.map(e => {
+  const line = document.createElementNS(svgNS, 'line');
+  line.setAttribute('class', 'link');
+  line.setAttribute('stroke', THEME_COLORS[e.source.theme] || '#8b8fa8');
+  line.setAttribute('stroke-width', '0.9');
+  line.setAttribute('stroke-opacity', '0.22');
+  g.appendChild(line);
+  return line;
+});
+
+const nodeEls = NODES.map(n => {
+  const ng = document.createElementNS(svgNS, 'g');
+  ng.setAttribute('class', 'node');
+
+  const core = document.createElementNS(svgNS, 'circle');
+  core.setAttribute('class', 'core');
+  core.setAttribute('r', 5);
+  core.setAttribute('fill', THEME_COLORS[n.theme]);
+  core.setAttribute('fill-opacity', '0.72');
+  ng.appendChild(core);
+
+  const label = document.createElementNS(svgNS, 'text');
+  label.setAttribute('text-anchor', 'middle');
+  label.setAttribute('dy', -10);
+  label.textContent = n.t.length > 24 ? n.t.slice(0,22) + '…' : n.t;
+  ng.appendChild(label);
+
+  g.appendChild(ng);
+
+  let dragging = false;
+  function toLocalPoint(evt){
+    const pt = svgEl.createSVGPoint();
+    pt.x = evt.clientX; pt.y = evt.clientY;
+    return pt.matrixTransform(g.getScreenCTM().inverse());
+  }
+  ng.addEventListener('pointerdown', (evt) => {
+    evt.stopPropagation();
+    dragging = true;
+    ng.setPointerCapture(evt.pointerId);
+    const p = toLocalPoint(evt);
+    n.fx = p.x; n.fy = p.y;
+    selectNode(n.id);
+  });
+  ng.addEventListener('pointermove', (evt) => {
+    if(!dragging) return;
+    const p = toLocalPoint(evt);
+    n.fx = p.x; n.fy = p.y;
+  });
+  function endDrag(){
+    if(!dragging) return;
+    dragging = false;
+    n.fx = null; n.fy = null;
+  }
+  ng.addEventListener('pointerup', endDrag);
+  ng.addEventListener('pointercancel', endDrag);
+  ng.addEventListener('click', (evt) => { evt.stopPropagation(); selectNode(n.id); });
+
+  return ng;
+});
+
+/* ---------- pan & zoom ---------- */
+let view = { x: 0, y: 0, k: 1 };
+function applyView(){
+  zoomG.setAttribute('transform', `translate(${view.x},${view.y}) scale(${view.k})`);
+}
+function screenToOuter(evt){
+  const pt = svgEl.createSVGPoint();
+  pt.x = evt.clientX; pt.y = evt.clientY;
+  return pt.matrixTransform(svgEl.getScreenCTM().inverse());
+}
+function zoomBy(factor, centerPt){
+  const p = centerPt || { x: W/2, y: H/2 };
+  const newK = Math.max(0.35, Math.min(4, view.k * factor));
+  view.x = p.x - (newK/view.k) * (p.x - view.x);
+  view.y = p.y - (newK/view.k) * (p.y - view.y);
+  view.k = newK;
+  applyView();
+}
+svgEl.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const p = screenToOuter(e);
+  zoomBy(e.deltaY < 0 ? 1.12 : 0.89, p);
+}, { passive:false });
+
+let panning = false, panStart = null, panViewStart = null;
+svgEl.addEventListener('pointerdown', (e) => {
+  panning = true;
+  panStart = screenToOuter(e);
+  panViewStart = { ...view };
+  deselect();
+});
+svgEl.addEventListener('pointermove', (e) => {
+  if(!panning) return;
+  const cur = screenToOuter(e);
+  view.x = panViewStart.x + (cur.x - panStart.x);
+  view.y = panViewStart.y + (cur.y - panStart.y);
+  applyView();
+});
+window.addEventListener('pointerup', () => { panning = false; });
+
+document.getElementById('zoomIn').onclick = () => zoomBy(1.3);
+document.getElementById('zoomOut').onclick = () => zoomBy(0.77);
+document.getElementById('zoomReset').onclick = () => { view = {x:0,y:0,k:1}; applyView(); };
+
+// pinch zoom (basic two-finger support)
+let pinchDist = null;
+svgEl.addEventListener('touchstart', (e) => {
+  if(e.touches.length === 2){
+    const [t1,t2] = e.touches;
+    pinchDist = Math.hypot(t2.clientX-t1.clientX, t2.clientY-t1.clientY);
+  }
+}, { passive:true });
+svgEl.addEventListener('touchmove', (e) => {
+  if(e.touches.length === 2 && pinchDist){
+    const [t1,t2] = e.touches;
+    const dist = Math.hypot(t2.clientX-t1.clientX, t2.clientY-t1.clientY);
+    const factor = dist / pinchDist;
+    const cx = (t1.clientX+t2.clientX)/2, cy = (t1.clientY+t2.clientY)/2;
+    const p = screenToOuter({clientX:cx, clientY:cy});
+    zoomBy(factor, p);
+    pinchDist = dist;
+  }
+}, { passive:true });
+
+/* ---------- simple force simulation ---------- */
+const REPULSION = 21000;
+const SPRING_K = 0.016;
+const IDEAL_LEN = 78;
+const CENTER_K = 0.0026;
+const DAMPING = 0.86;
+const PAD = 40;
+
+function tick(){
+  const n = NODES.length;
+  for(let i=0;i<n;i++){
+    for(let j=i+1;j<n;j++){
+      const a = NODES[i], b = NODES[j];
+      let dx = a.x - b.x, dy = a.y - b.y;
+      let distSq = dx*dx + dy*dy;
+      if(distSq < 1) distSq = 1;
+      const dist = Math.sqrt(distSq);
+      const force = REPULSION / distSq;
+      const fx = (force * dx) / dist, fy = (force * dy) / dist;
+      a.vx += fx; a.vy += fy;
+      b.vx -= fx; b.vy -= fy;
+    }
+  }
+  edges.forEach(e => {
+    const a = e.source, b = e.target;
+    let dx = b.x - a.x, dy = b.y - a.y;
+    let dist = Math.sqrt(dx*dx + dy*dy) || 0.01;
+    const diff = dist - IDEAL_LEN;
+    const force = SPRING_K * diff;
+    const fx = (force * dx) / dist, fy = (force * dy) / dist;
+    a.vx += fx; a.vy += fy;
+    b.vx -= fx; b.vy -= fy;
+  });
+  NODES.forEach(nd => {
+    nd.vx += (CX - nd.x) * CENTER_K;
+    nd.vy += (CY - nd.y) * CENTER_K;
+  });
+  NODES.forEach(nd => {
+    if(nd.fx !== null && nd.fx !== undefined){
+      nd.x = nd.fx; nd.y = nd.fy; nd.vx = 0; nd.vy = 0;
+    } else {
+      nd.vx *= DAMPING; nd.vy *= DAMPING;
+      const speed = Math.sqrt(nd.vx*nd.vx + nd.vy*nd.vy);
+      if(speed > 16){ nd.vx = (nd.vx/speed)*16; nd.vy = (nd.vy/speed)*16; }
+      nd.x += nd.vx; nd.y += nd.vy;
+      nd.x = Math.max(PAD, Math.min(W-PAD, nd.x));
+      nd.y = Math.max(PAD, Math.min(H-PAD, nd.y));
+    }
+  });
+  linkEls.forEach((line, i) => {
+    const e = edges[i];
+    line.setAttribute('x1', e.source.x); line.setAttribute('y1', e.source.y);
+    line.setAttribute('x2', e.target.x); line.setAttribute('y2', e.target.y);
+  });
+  nodeEls.forEach((ng, i) => {
+    ng.setAttribute('transform', `translate(${NODES[i].x},${NODES[i].y})`);
+  });
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+/* ---------- selection & card ---------- */
+const card = document.getElementById('card');
+document.getElementById('closeCard').addEventListener('click', (e) => { e.stopPropagation(); deselect(); });
+
+function selectNode(id){
+  const n = nodeById[id];
+  const nbrs = new Set(neighbors[id]);
+
+  nodeEls.forEach((ng, i) => {
+    const nd = NODES[i];
+    const isSelf = nd.id === id;
+    const isNbr = nbrs.has(nd.id);
+    ng.classList.toggle('lit', isSelf || isNbr);
+    ng.classList.toggle('dim', !isSelf && !isNbr);
+    ng.classList.toggle('selected', isSelf);
+  });
+  linkEls.forEach((line, i) => {
+    const e = edges[i];
+    const involved = e.source.id === id || e.target.id === id;
+    line.classList.toggle('lit', involved);
+    line.classList.toggle('dim', !involved);
+  });
+
+  document.getElementById('cardTitle').textContent = n.t;
+  document.getElementById('cardAuthor').textContent = n.a;
+  document.getElementById('cardBlurb').textContent = n.blurb;
+
+  const chips = document.getElementById('cardChips');
+  chips.innerHTML = '';
+  neighbors[id].forEach(nid => {
+    const nb = nodeById[nid];
+    const chip = document.createElement('div');
+    chip.className = 'chip';
+    const dot = document.createElement('span');
+    dot.className = 'cdot';
+    dot.style.background = THEME_COLORS[nb.theme];
+    chip.appendChild(dot);
+    const label = document.createElement('span');
+    label.textContent = nb.t;
+    chip.appendChild(label);
+    chip.addEventListener('click', (e) => { e.stopPropagation(); selectNode(nid); });
+    const reason = reasonFor(id, nid);
+    chip.addEventListener('mouseenter', (e) => showEdgeTip(e, reason));
+    chip.addEventListener('mousemove', (e) => positionEdgeTip(e));
+    chip.addEventListener('mouseleave', hideEdgeTip);
+    chips.appendChild(chip);
+  });
+
+  card.classList.add('show');
+}
+
+const edgeTip = document.getElementById('edgeTip');
+function showEdgeTip(evt, text){
+  edgeTip.textContent = text;
+  positionEdgeTip(evt);
+  edgeTip.classList.add('show');
+}
+function positionEdgeTip(evt){
+  const pad = 14;
+  let x = evt.clientX + pad, y = evt.clientY + pad;
+  if(x + 240 > window.innerWidth) x = evt.clientX - 240 - pad;
+  if(y + 60 > window.innerHeight) y = evt.clientY - 60 - pad;
+  edgeTip.style.left = x + 'px';
+  edgeTip.style.top = y + 'px';
+}
+function hideEdgeTip(){ edgeTip.classList.remove('show'); }
+
+function deselect(){
+  nodeEls.forEach(ng => ng.classList.remove('lit','dim','selected'));
+  linkEls.forEach(line => line.classList.remove('lit','dim'));
+  card.classList.remove('show');
+}
+</script>
+</body>
+</html>
